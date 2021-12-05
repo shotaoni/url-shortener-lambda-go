@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: URL Shortener using API Gateway, DynamoDB and Lambda
+Parameters: 
+  LinkTableName:
+    Type: String
+Resources: 
+  Shorten: #Lambda1
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: artifact
+      Handler: shorten
+      Runtime: go1.x
+      Policies: AmazonDynamoDBFullAccess
+      Timeout: 10
+      Tracing: Active
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Path: /links
+            Method: post
+      Environment:
+        Variables:
+          LINK_TABLE: !Ref LinkTableName
+  ShortenGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${Shorten}
+      RetentionInDays: 1
+  Redirect: #Lambda1
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: artifact
+      Handler: redirect
+      Runtime: go1.x
+      Policies: AmazonDynamoDBReadOnlyAccess
+      Timeout: 10
+      Tracing: Active
+      Events:
+        GetEvent:
+          Type: Api
+          Properties:
+            Path: /links/{shorten_resource}
+            Method: get
+      Environment:
+        Variables:
+          LINK_TABLE: !Ref LinkTableName
+  RedirectGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${Redirect}
+      RetentionInDays: 1
+  LinkTable: #dynamoDB
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref LinkTableName
+      AttributeDefinitions:
+        - AttributeName: shorten_resource
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shorten_resource
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+Outputs:
+  ApiUrl:
+    Description: "API endpoint URL for Prod environment"
+    # apigatewayのリソース識別名でなくserverlessRestApiで参照できる
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/links"

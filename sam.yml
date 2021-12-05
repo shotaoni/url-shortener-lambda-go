@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: URL Shortener using API Gateway, DynamoDB and Lambda
+Parameters:
+  LinkTableName:
+    Type: String
+Resources:
+  Shorten:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://stack-bucket-for-url-shortener-lambda-go-2021-1205-shota/224e1d6315d5971001ac3bb19e7e972b
+      Handler: shorten
+      Runtime: go1.x
+      Policies: AmazonDynamoDBFullAccess
+      Timeout: 10
+      Tracing: Active
+      Events:
+        PostEvent:
+          Type: Api
+          Properties:
+            Path: /links
+            Method: post
+      Environment:
+        Variables:
+          LINK_TABLE:
+            Ref: LinkTableName
+  ShortenGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${Shorten}
+      RetentionInDays: 1
+  Redirect:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://stack-bucket-for-url-shortener-lambda-go-2021-1205-shota/224e1d6315d5971001ac3bb19e7e972b
+      Handler: redirect
+      Runtime: go1.x
+      Policies: AmazonDynamoDBReadOnlyAccess
+      Timeout: 10
+      Tracing: Active
+      Events:
+        GetEvent:
+          Type: Api
+          Properties:
+            Path: /links/{shorten_resource}
+            Method: get
+      Environment:
+        Variables:
+          LINK_TABLE:
+            Ref: LinkTableName
+  RedirectGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${Redirect}
+      RetentionInDays: 1
+  LinkTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Ref: LinkTableName
+      AttributeDefinitions:
+      - AttributeName: shorten_resource
+        AttributeType: S
+      KeySchema:
+      - AttributeName: shorten_resource
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+Outputs:
+  ApiUrl:
+    Description: API endpoint URL for Prod environment
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/links
