@@ -33,7 +33,8 @@ deploy: build
 
 delete:
 	aws cloudformation delete-stack --stack-name $(STACK_NAME)
-	aws s3 rm "s3://$(STACK_BUCKET)" --recursive aws s3 rb "s3://$(STACK_BUCKET)"
+	aws s3 rm "s3://$(STACK_BUCKET)" --recursive
+	aws s3 rb "s3://$(STACK_BUCKET)"
 .PHONY: delete
 
 test:
